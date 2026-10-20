@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.npz
+run.log
+benchmarks/grid/D30_copy/
+benchmarks/grid/D40/
+.venv/
+venv/
+*.db
+*.sqlite
