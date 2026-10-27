@@ -149,3 +149,67 @@ class LBM:
     def vorticity(self) -> np.ndarray:
         _, ux, uy = self.macros()
         return np.gradient(uy, axis=0) - np.gradient(ux, axis=1)
+
+    # ---------- 控制体积分测力（2026-10-27 新增，与动量交换法并行对比） ----------
+    def force_cv(self, prev_momentum: tuple[float, float] | None = None,
+                 margin: int | None = None) -> tuple[float, float, tuple[float, float]]:
+        """控制体 + 动量守恒积分测力。
+
+        在圆柱外围取矩形控制体（不贴壁、不碰入口/出口），对四边做动量通量积分：
+            F_body = -∮ Π·n dA - d/dt ∫_CV ρu dV
+        其中 Π_ij = Σ_k c_ki c_kj f_k（含压力 c_s²ρ、对流 ρu_i u_j 与非平衡粘性项）。
+        dt=1（格子单位），故 dP/dt 用相邻两步差分。
+
+        返回 (Fx, Fy, (Px, Py))；Px/Py 是当前 CV 内总动量，调用方下一步把它作为
+        prev_momentum 传回来即可。与动量交换法一样，外部再做 2/(U²D) 无量纲化。
+
+        ⚠️ 这是**第二种独立测力法**，用来验证「Cl 偏低是否来自动量交换法的切向低估」。
+        两种方法都可能各有偏差；结论要看两者之差，不是看谁更接近文献。
+        """
+        rho, ux, uy = self.macros()
+        cx2 = C[:, 0, None, None] * C[:, 0, None, None]
+        cxy = C[:, 0, None, None] * C[:, 1, None, None]
+        cy2 = C[:, 1, None, None] * C[:, 1, None, None]
+        pi_xx = (self.f * cx2).sum(axis=0)
+        pi_xy = (self.f * cxy).sum(axis=0)
+        pi_yy = (self.f * cy2).sum(axis=0)
+
+        xs, ys = np.nonzero(self.obstacle)
+        if xs.size == 0:
+            return 0.0, 0.0, (0.0, 0.0)
+        if margin is None:
+            margin = max(4, int(round(0.5 * (xs.max() - xs.min() + 1))))
+        x1 = max(1, int(xs.min()) - margin)
+        x2 = min(self.nx - 2, int(xs.max()) + margin)
+        y1 = max(1, int(ys.min()) - margin)
+        y2 = min(self.ny - 2, int(ys.max()) + margin)
+
+        def face_sum(arr: np.ndarray, sl_x: slice, sl_y: slice) -> float:
+            sub = arr[sl_x, sl_y]
+            m = self.fluid[sl_x, sl_y]
+            return float(sub[m].sum())
+
+        # 四边通量（法向向外）
+        right_xx = face_sum(pi_xx, slice(x2, x2 + 1), slice(y1, y2 + 1))
+        left_xx = face_sum(pi_xx, slice(x1, x1 + 1), slice(y1, y2 + 1))
+        top_xy = face_sum(pi_xy, slice(x1, x2 + 1), slice(y2, y2 + 1))
+        bottom_xy = face_sum(pi_xy, slice(x1, x2 + 1), slice(y1, y1 + 1))
+        right_xy = face_sum(pi_xy, slice(x2, x2 + 1), slice(y1, y2 + 1))
+        left_xy = face_sum(pi_xy, slice(x1, x1 + 1), slice(y1, y2 + 1))
+        top_yy = face_sum(pi_yy, slice(x1, x2 + 1), slice(y2, y2 + 1))
+        bottom_yy = face_sum(pi_yy, slice(x1, x2 + 1), slice(y1, y1 + 1))
+
+        flux_x = (right_xx - left_xx) + (top_xy - bottom_xy)
+        flux_y = (right_xy - left_xy) + (top_yy - bottom_yy)
+
+        box = (slice(x1, x2 + 1), slice(y1, y2 + 1))
+        m = self.fluid[box]
+        px = float((rho[box] * ux[box])[m].sum())
+        py = float((rho[box] * uy[box])[m].sum())
+        if prev_momentum is None:
+            dpx = dpy = 0.0
+        else:
+            dpx = px - prev_momentum[0]
+            dpy = py - prev_momentum[1]
+
+        return -(flux_x + dpx), -(flux_y + dpy), (px, py)
