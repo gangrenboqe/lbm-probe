@@ -3,7 +3,8 @@ __pycache__/
 *.npz
 run.log
 benchmarks/grid/D30_copy/
-benchmarks/grid/D40/
+# 🔴 2026-10-28：D40 已跑完且两道门禁全过（Cl 1.7180 / 误差 14.23%），不再是半成品 → 解除忽略。
+#    ckpt.npz 仍被上面的 *.npz 规则排除（断点文件，9.6MB，不必上库）。
 .venv/
 venv/
 *.db
