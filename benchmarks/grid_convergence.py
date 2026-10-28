@@ -86,6 +86,7 @@ def main() -> int:
                  f"{('%.3f' % (r['flux_inst']*100)) if r['flux_inst'] is not None else '—'} |")
 
     # -------- 判定（按施工单给出的三种情况） --------
+    rows_by_name = {r["name"]: r for r in rows}
     g = [r for r in rows if r["name"] in CONFIGS]
     ok = [r for r in g if r["mass_ok"] and r["stat_ok"]]
     L += ["", "## 四、误差来源判定（按施工单的三分支）", ""]
@@ -103,15 +104,24 @@ def main() -> int:
         if len(ok) == 3:
             ds = [r["d"] for r in ok]; order = np.argsort(ds)
             st_seq = [st_errs[f"D{ds[i]}"] for i in order]
+            cd_seq = [cd_errs[f"D{ds[i]}"] for i in order]
             cl_seq = [cl_errs[f"D{ds[i]}"] for i in order]
+            taus = [rows_by_name[f"D{ds[i]}"]["tau"] for i in order]
             def trend(seq):
                 return "减小" if all(a >= b for a, b in zip(seq, seq[1:])) and seq[-1] < seq[0] else (
                     "增大" if all(a <= b for a, b in zip(seq, seq[1:])) and seq[-1] > seq[0] else "无规律")
             L += ["", f"- St 误差随 D 的趋势：**{trend(st_seq)}**（{st_seq[0]*100:.2f}% → {st_seq[-1]*100:.2f}%）",
-                  f"- Cl 全幅误差随 D 的趋势：**{trend(cl_seq)}**（{cl_seq[0]*100:.2f}% → {cl_seq[-1]*100:.2f}%）"]
+                  f"- Cd_max 误差随 D 的趋势：**{trend(cd_seq)}**（{cd_seq[0]*100:.2f}% → {cd_seq[-1]*100:.2f}%）",
+                  f"- Cl 全幅误差随 D 的趋势：**{trend(cl_seq)}**（{cl_seq[0]*100:.2f}% → {cl_seq[-1]*100:.2f}%）",
+                  "",
+                  "⚠️ **口径提醒（结构性的，不是这次的结果）**：网格加密档固定 Re 与 U，"
+                  "而 LBM 中 τ = 3ν + 0.5、ν = U·D/Re → **D 组的 τ 随 D 同步增大（"
+                  + " → ".join(f"{t:.2f}" for t in taus) + "），分辨率与黏性离散在这组实验里耦合，单靠本表无法分离两者**。"
+                  "单变量分离需固定 D 与 U、只改 Re（Re→ν→τ）。"]
     L += ["", "> 判定口径（施工单原文）：误差随 D 明显减小 → ✅ 分辨率问题，GPU 上大网格可解决；"
           "误差基本不变 → 🔴 不是分辨率问题（怀疑出口 BC / 判据）；误差变大/无规律 → 🟡 实现有问题，停 GPU 计划。",
-          "> ⛔ 不许因\"趋势大致单调\"就写\"已验证收敛\"——上面给的是逐档具体数字。"]
+          "> ⛔ 不许因\"趋势大致单调\"就写\"已验证收敛\"——上面给的是逐档具体数字。",
+          "> 🔴 生成器只吐事实（数字、趋势、门禁），不下判断（主因是谁、下一步做什么）；判断见 README 叙述段。"]
 
     (GRID / "summary.md").write_text("\n".join(L) + "\n", encoding="utf-8")
 
