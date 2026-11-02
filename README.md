@@ -3,6 +3,34 @@
 > **一句话**：用格子玻尔兹曼方法（LBM）在普通 CPU 上复现圆柱绕流，
 > 并把结果与**权威基准**（Schäfer–Turek 1996）逐项对照。
 
+## 状态：已封存（2026-10-28 决定）
+
+> **「封存」= 代码、数据、图、结论与边界全部保留在仓，可直接查证；
+> 但不再投入算力继续推进。不是放弃，是判断这条路已推到当前方法的边界。**
+
+- **为什么停**：继续推进需要把网格加密到更高精度（当前是纯 CPU 的 Python 实现，GPU 版一直在计划里但没做）。
+  但在"主因无法分离"的前提下——实验已经证明 Cl 误差占比与 Re 耦合，无法单变量分离——
+  继续加密只会让同一个数更精确，不会改变结论的形态。投入产出比不成立，所以停。
+- **读者能拿到什么**：一套完整的数值实验方法（三道门禁、五档对照、同 Re 差值口径）、
+  可直接复算的数据与图（见下表），以及"问题推到了哪一步、还差什么才能继续"的诚实记录——
+  足够判断这个方向值不值得接手，**但不要期待一键复现，也没有一键复现**。
+- 🔴 **本仓不提供一键复现**：完整复跑 = 五档 × 30 物理秒批量计算（单档在普通 CPU 上约 4–12 分钟，
+  尚未含调参与核对），且核心问题不因重跑而闭合。下表每张图都标注了来源，可逐张核对。
+- 问题停在哪：Cl 全幅误差 5.95% 的**主因**（网格分辨率 vs 黏性离散）无法分离——
+  加密实验已证明误差占比与 Re 耦合；要闭合需要独立标定的升力–雷诺数曲线或高分辨率参考解，两者都超出当前方法边界。
+
+### 图与数据出处（图 → 证明什么 → 来源）
+
+| 图 | 证明什么 | 数据 / 脚本 |
+|---|---|---|
+| `benchmarks/grid/grid_convergence.png` | 五档收敛对照：Cd 0.06% / St 0.02% 达文献精度；Cl 误差随加密反而增大（5.33%→14.23%）→ 引出主因问题 | `benchmarks/grid/*/measured.json` 汇总于 `grid/summary.md`，脚本 `benchmarks/grid_convergence.py` |
+| `benchmarks/re_separation/D{20,40}_re{80,120}_cl_history.png`（8 张） | Re 单变量分离实验：同 Re 下 D40/D20 的 Cl 比值 0.9589 / 0.9423 / 0.9261 随 Re 单调下降 → 加密代价不是固定负收益 | `benchmarks/re_separation/measured_D*_re*.json` + `re_separation.md`，脚本 `benchmarks/re_separation.py` |
+| `benchmarks/force_compare/force_compare.png` | 动量交换法测力与文献基准的逐项对照 | `benchmarks/force_compare/force_series.csv` + `force_compare.md`，脚本 `benchmarks/force_compare.py` |
+| `benchmarks/grid/{D20,D30,D40,tau055,tau057}/`（每档 4 图：涡街流场 / Cl 历史 / 质量守恒 / 稳态判定） | 各档原始证据：每档**独立通过三道门禁**后才进汇总表，不是挑好看的 | 同目录 `measured.json`，求解与门禁脚本 `run_cylinder.py` |
+| 根目录 `vorticity.png` / `cl_history.png` / `mass_history.png` / `stationarity.png` | 最小验证期产物（含两轮作废过程的完整记录见 `result.md`） | `measured.json` |
+
+（另：`benchmarks/tau_axis/` 是 τ 轴对照实验的数据与结论，作为分离实验的前置依据保留。）
+
 ## 结论（实测，四档配置）
 
 | 量 | 最好档位 | 实测 | 文献 | 误差 |
