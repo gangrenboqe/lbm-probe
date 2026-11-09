@@ -42,7 +42,7 @@ def load(name: str) -> dict | None:
     return row
 
 
-def fmt(v, n=4):
+def fmt(v: float | None, n: int = 4) -> str:
     return "—" if v is None else f"{v:.{n}f}"
 
 

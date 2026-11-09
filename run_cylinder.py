@@ -39,7 +39,8 @@ REF = {
 }
 
 
-def build_case(d_lattice: int, re: float, u_mean_l: float, outlet_mode: str = "convective"):
+def build_case(d_lattice: int, re: float, u_mean_l: float,
+               outlet_mode: str = "convective") -> tuple["LBM", dict]:
     scale = d_lattice / 0.1
     lx = int(round(2.2 * scale)); ly = int(round(0.41 * scale))
     cx = 0.2 * scale; cy = 0.2 * scale; r = 0.05 * scale
@@ -83,7 +84,7 @@ def save_ckpt(path: Path, lbm: LBM, step: int, cid: str, m0: float, h: dict) -> 
             np.savez_compressed(fh, **payload)
 
 
-def load_ckpt(path: Path, cid: str):
+def load_ckpt(path: Path, cid: str) -> dict | None:
     if not path.exists():
         return None
     with np.load(path, allow_pickle=False) as d:
